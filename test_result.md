@@ -168,6 +168,18 @@ user_problem_statement: "Test the GiftsDates withdrawal-gating and payout-docume
 
 
 backend:
+  - task: "Hide distance profile setting gating (PATCH /api/auth/me)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive testing completed (2026-09-17). Created /app/backend_test_hide_distance.py with 5 test scenarios covering the gating change from VIP-only to PREMIUM+VIP for the hide_distance profile setting. All 5 tests PASSED. Test setup: Registered 5 users with different premium tiers (non-premium, PREMIUM via 300 coins + buy-with-coins, VIP via 500 coins + buy-with-coins, non-premium for disable test, PREMIUM_LITE via 150 coins + buy-with-coins). Test results: (1) Non-premium, non-VIP user calling PATCH /api/auth/me {hide_distance:true} correctly returns 403 PREMIUM_REQUIRED ✅, (2) PREMIUM user (funded 300 coins, bought premium tier) calling PATCH /api/auth/me {hide_distance:true} returns 200 and GET /api/auth/me confirms hide_distance=true ✅, (3) VIP user (funded 500 coins, bought vip tier) calling PATCH /api/auth/me {hide_distance:true} returns 200 and GET /api/auth/me confirms hide_distance=true ✅, (4) Non-premium user calling PATCH /api/auth/me {hide_distance:false} returns 200 with no gating (anyone can disable) ✅, (5) PREMIUM_LITE user (funded 150 coins, bought premium_lite tier) calling PATCH /api/auth/me {hide_distance:true} correctly returns 403 PREMIUM_REQUIRED (only full Premium and VIP allowed, not premium_lite) ✅. Implementation verified at line 881 in server.py: 'if \"hide_distance\" in upd and upd[\"hide_distance\"] and not (is_premium(user) or is_vip(user)): raise HTTPException(403, \"PREMIUM_REQUIRED\")'. The gating correctly allows both PREMIUM (is_premium) and VIP (is_vip) users to enable hide_distance, while blocking non-premium and premium_lite users. Disabling (setting to false) has no gating as expected. Feature fully functional and working as specified."
+
   - task: "Root Health Check Endpoint"
     implemented: true
     working: true
@@ -345,10 +357,10 @@ backend:
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 7
+  test_sequence: 8
   run_ui: false
   last_tested: "2026-09-17"
-  last_test_focus: "multi_gender_filter"
+  last_test_focus: "hide_distance_gating"
 
 test_plan:
   current_focus: []
@@ -381,3 +393,7 @@ agent_communication:
     message: "Completed auth/login persistence testing after GitHub restore (2026-09-17). Updated /app/backend_test.py with comprehensive 8-test suite covering: (1) Root health check GET /api/, (2) User registration POST /api/auth/register, (3) User login POST /api/auth/login, (4) JWT authentication GET /api/auth/me, (5-7) JWT persistence across 3 fresh requests, (8) Re-login verification. Results: 8/8 tests PASSED. All core authentication flows working perfectly after GitHub restore. Test user created: Fatima Al Mazrouei (fatima.almazrouei.1789606014.72149@gmail.com) with user ID b1f1e1e1-b331-413b-87c2-8ae359e18dcd. MongoDB persistence confirmed - users can register, login, and maintain authenticated sessions via JWT tokens. JWT tokens work consistently across multiple requests. Re-login successful with same user ID. Backend service running correctly on supervisor. No issues found - all auth functionality working as expected. Test credentials saved to /app/memory/test_credentials.md."
   - agent: "testing"
     message: "Completed comprehensive testing of two new VIP features (2026-09-17). Created /app/backend_test_vip_full.py with 17 test scenarios covering both features. FEATURE 1 - VIP One-time Unlock (POST /api/vip/unlock/{uid}): Tested 7 scenarios - (1) Self-unlock returns 400 CANNOT_UNLOCK_SELF ✅, (2) Insufficient coins returns 400 'Insufficient coins' ✅, (3) Successful unlock: viewer balance decreased by 100 coins, owner withdrawable increased by 100, vip_unlocks record created in MongoDB, coin_transactions records created (vip_unlock: -100, vip_unlock_earned: +100) ✅, (4) Second unlock returns {unlocked:true, already:true} with no charge ✅, (5) Viewer sees unlocked profile (locked:false, unlocked_via_coins:true) ✅, (6) Fresh user sees locked profile with unlock_price:100 and can_unlock:true ✅, (7) Unpublished profile returns 404 ✅. FEATURE 2 - VIP Subscription (GET /api/vip/subscription, POST /api/vip/cancel-subscription): Tested 4 scenarios - (1) Non-VIP user shows vip_active:false ✅, (2) VIP user shows vip_active:true with vip_until set ✅, (3) Cancel subscription (no stripe_subscription_id) returns {cancelled:true, auto_renew:false} ✅, (4) vip_auto_renew persists as false via GET /api/auth/me ✅. All 17 tests PASSED. Test setup: Used MongoDB to add coins for testing (owner: 500 coins for VIP purchase, viewer: 100 coins for unlock). Owner bought VIP via POST /api/premium/buy-with-coins and published profile via PUT /api/vip/profile. All coin transfers, database records, profile visibility changes, and subscription status working correctly. Both features fully functional. NOTE: Stripe subscription path (with stripe_subscription_id) not tested as Stripe is INACTIVE - this is expected per requirements."
+
+agent_communication:
+  - agent: "testing"
+    message: "Completed comprehensive testing of hide_distance profile setting gating change (2026-09-17). Created /app/backend_test_hide_distance.py with 5 test scenarios covering the gating change from VIP-only to PREMIUM+VIP. All 5 tests PASSED. Test setup: Registered 5 users with different premium tiers (non-premium, PREMIUM via 300 coins + buy-with-coins, VIP via 500 coins + buy-with-coins, non-premium for disable test, PREMIUM_LITE via 150 coins + buy-with-coins). RESULTS: (1) Non-premium, non-VIP user calling PATCH /api/auth/me {hide_distance:true} correctly returns 403 PREMIUM_REQUIRED ✅. (2) PREMIUM user (funded 300 coins, bought premium tier) calling PATCH /api/auth/me {hide_distance:true} returns 200 and GET /api/auth/me confirms hide_distance=true ✅. (3) VIP user (funded 500 coins, bought vip tier) calling PATCH /api/auth/me {hide_distance:true} returns 200 and GET /api/auth/me confirms hide_distance=true ✅. (4) Non-premium user calling PATCH /api/auth/me {hide_distance:false} returns 200 with no gating (anyone can disable) ✅. (5) PREMIUM_LITE user (funded 150 coins, bought premium_lite tier) calling PATCH /api/auth/me {hide_distance:true} correctly returns 403 PREMIUM_REQUIRED (only full Premium and VIP allowed, not premium_lite) ✅. Implementation verified at line 881 in server.py: the condition 'not (is_premium(user) or is_vip(user))' correctly allows both PREMIUM and VIP users to enable hide_distance, while blocking non-premium and premium_lite users. Disabling (setting to false) has no gating as expected. Feature fully functional and working as specified."

@@ -878,8 +878,8 @@ async def update_me(patch: ProfileUpdate, user=Depends(get_current_user)):
         upd["genders"] = gs
         if gs:
             upd["gender"] = gs[0]
-    if "hide_distance" in upd and upd["hide_distance"] and not is_vip(user):
-        raise HTTPException(403, "VIP_REQUIRED")
+    if "hide_distance" in upd and upd["hide_distance"] and not (is_premium(user) or is_vip(user)):
+        raise HTTPException(403, "PREMIUM_REQUIRED")
     if "height" in upd and not (100 <= upd["height"] <= 250): raise HTTPException(400, "Height must be 100-250 cm")
     if "weight" in upd and not (30 <= upd["weight"] <= 300): raise HTTPException(400, "Weight must be 30-300 kg")
     if "date_price" in upd:

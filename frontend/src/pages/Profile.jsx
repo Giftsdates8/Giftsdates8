@@ -133,21 +133,21 @@ export default function Profile() {
               <MapPin size={11} /> {Number(f.lat).toFixed(3)}, {Number(f.lng).toFixed(3)}
             </p>
           )}
-          <div className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${isVip ? "border-sky-500/30 bg-sky-500/5" : "border-white/10 bg-white/5"}`} data-testid="profile-hide-distance-row">
+          <div className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${(isPremium || isVip) ? "border-sky-500/30 bg-sky-500/5" : "border-white/10 bg-white/5"}`} data-testid="profile-hide-distance-row">
             <div className="min-w-0">
               <div className="text-sm text-slate-200 flex items-center gap-2">
-                {isVip ? <MapPin size={15} className="text-sky-300 shrink-0" /> : <Lock size={14} className="text-amber-300 shrink-0" />}
+                {(isPremium || isVip) ? <MapPin size={15} className="text-sky-300 shrink-0" /> : <Lock size={14} className="text-amber-300 shrink-0" />}
                 {t("hide_distance", lang)}
-                {!isVip && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/40 text-red-200">{t("hide_distance_vip", lang)}</span>}
+                {!(isPremium || isVip) && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/40 text-red-200">{t("hide_distance_premium", lang)}</span>}
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">{t("hide_distance_hint", lang)}</p>
             </div>
             <Switch
               data-testid="profile-hide-distance-switch"
               checked={!!f.hide_distance}
-              disabled={!isVip}
+              disabled={!(isPremium || isVip)}
               onCheckedChange={v => {
-                if (!isVip) { toast.error(t("hide_distance_vip", lang), { action: { label: "VIP", onClick: () => nav("/wallet?premium=1") } }); return; }
+                if (!(isPremium || isVip)) { toast.error(t("hide_distance_premium", lang), { action: { label: t("premium", lang), onClick: () => nav("/wallet?premium=1") } }); return; }
                 setF({ ...f, hide_distance: v });
               }}
             />
