@@ -104,6 +104,22 @@
 
 user_problem_statement: "Test the GiftsDates withdrawal-gating and payout-document flow on the FastAPI backend. Verify auth/login persistence after GitHub restore."
 
+  - task: "Browse filters upgrade: zodiac, available_date, video_calls (GET /api/profiles)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added 3 new premium-gated filters to GET /api/profiles: zodiac (exact match on user.zodiac e.g. 'leo'), available_date (YYYY-MM-DD, matches when value is in user.availability array), video_calls (bool; matches users where video_calls_enabled != False). All three added to advanced_used so they require has_premium (403 PREMIUM_REQUIRED for non-premium). Test: (1) non-premium passing any of these gets 403 PREMIUM_REQUIRED; (2) premium user: create targets with zodiac (register birth_year/month/day), availability (PATCH /api/auth/me availability=['2026-10-01']), video_calls_enabled true/false, verify each filter narrows results. Basic filters (min_age/max_age/gender/city/country/q) remain free."
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive testing completed. Created /app/backend_test_browse_filters.py with 8 test scenarios covering all three new premium-gated filters. All tests PASSED. Test setup: Created non-premium user, premium user (funded 300 coins via MongoDB, bought premium via POST /api/premium/buy-with-coins), and 5 target users with specific attributes (Leo zodiac born 1995-08-05, Capricorn zodiac born 1994-01-15, availability set to 2026-10-01, video_calls_enabled=true, video_calls_enabled=false). Test results: (1) PREMIUM GATING - Non-premium user calling GET /api/profiles with zodiac=leo returns 403 PREMIUM_REQUIRED ✅, with available_date=2026-10-01 returns 403 PREMIUM_REQUIRED ✅, with video_calls=true returns 403 PREMIUM_REQUIRED ✅. (2) BASIC FILTERS REMAIN FREE - Non-premium user calling GET /api/profiles?min_age=18&max_age=60&gender=female returns 200 ✅. (3) PREMIUM FILTERING WORKS - Premium user with zodiac=leo filter returns 200 and correctly includes Leo target and excludes non-Leo target ✅, with available_date=2026-10-01 returns 200 and includes target with that availability ✅, with available_date=2026-11-01 returns 200 and correctly excludes target (different date) ✅, with video_calls=true returns 200 and includes target with video_calls_enabled=true and excludes target with video_calls_enabled=false ✅. All three filters correctly implemented at lines 1199, 1230-1232 of server.py. Premium gating correctly implemented at lines 1210-1214. All filters work as specified and correctly narrow results. Feature fully functional."
+
+
   - task: "VIP section one-time unlock for coins (POST /api/vip/unlock/{uid})"
     implemented: true
     working: true
@@ -313,16 +329,22 @@ backend:
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 5
+  test_sequence: 6
   run_ui: false
   last_tested: "2026-09-17"
-  last_test_focus: "vip_unlock_and_subscription_features"
+  last_test_focus: "browse_filters_upgrade"
 
 test_plan:
   current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "New Browse filter upgrade to test on GET /api/profiles. Added 3 premium-gated filters: zodiac (exact match user.zodiac), available_date (YYYY-MM-DD matches user.availability array), video_calls (bool -> video_calls_enabled != False). All require has_premium: a NON-premium user passing any of them must get 403 PREMIUM_REQUIRED. For a premium user, verify each narrows results (set zodiac via register birth date; availability via PATCH /api/auth/me {availability:['YYYY-MM-DD']}; video_calls_enabled via PATCH). Confirm basic filters (age/gender/city/country/q) still work WITHOUT premium. To make a user premium use POST /api/premium/buy-with-coins {tier:'premium'} after funding 300 coins. Stripe INACTIVE — don't test checkout."
+  - agent: "testing"
+    message: "Completed comprehensive testing of Browse filters upgrade (2026-09-17). Created /app/backend_test_browse_filters.py with 8 test scenarios covering all three new premium-gated filters (zodiac, available_date, video_calls). All 8 tests PASSED. Test setup: Created non-premium user, premium user (funded 300 coins via MongoDB, bought premium tier), and 5 target users with specific attributes (Leo zodiac, Capricorn zodiac, availability 2026-10-01, video_calls_enabled true/false). RESULTS: (1) PREMIUM GATING - All three filters (zodiac, available_date, video_calls) correctly return 403 PREMIUM_REQUIRED for non-premium users ✅. (2) BASIC FILTERS REMAIN FREE - Non-premium users can use basic filters (min_age, max_age, gender) without premium ✅. (3) PREMIUM FILTERING WORKS - Premium users can successfully use all three filters: zodiac=leo correctly includes Leo users and excludes non-Leo users ✅, available_date=2026-10-01 correctly includes users with that availability date ✅, available_date with different date correctly excludes users ✅, video_calls=true correctly includes users with video_calls_enabled=true and excludes users with video_calls_enabled=false ✅. All filters correctly narrow results based on criteria. Implementation verified at lines 1199, 1230-1232 (filters) and 1210-1214 (premium gating) in server.py. Feature fully functional and working as specified."
 
 agent_communication:
   - agent: "main"

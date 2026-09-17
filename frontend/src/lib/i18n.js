@@ -523,6 +523,8 @@ const T = {
   year: { ru: "Год", en: "Year", es: "Año", fr: "Année", de: "Jahr", pt: "Ano", zh: "年", ar: "سنة", hi: "साल", bn: "বছর", ur: "سال" },
   language_label: { ru: "Язык", en: "Language", es: "Idioma", fr: "Langue", de: "Sprache", pt: "Idioma", zh: "语言", ar: "اللغة", hi: "भाषा", bn: "ভাষা", ur: "زبان" },
   zodiac: { ru: "Знак зодиака", en: "Zodiac sign", es: "Signo zodiacal", fr: "Signe astrologique", de: "Sternzeichen", pt: "Signo", zh: "星座", ar: "برج", hi: "राशि", bn: "রাশি", ur: "ستارہ" },
+  available_on_date: { ru: "Свободен(на) в дату", en: "Available on date", es: "Disponible en fecha", fr: "Disponible à la date", de: "Verfügbar am Datum", pt: "Disponível na data", zh: "该日期有空", hi: "इस तारीख को उपलब्ध", bn: "এই তারিখে উপলব্ধ", ur: "اس تاریخ کو دستیاب", ar: "متاح في التاريخ" },
+  video_calls_available: { ru: "Доступны видеозвонки", en: "Video calls available", es: "Videollamadas disponibles", fr: "Appels vidéo disponibles", de: "Videoanrufe verfügbar", pt: "Chamadas de vídeo disponíveis", zh: "可视频通话", hi: "वीडियो कॉल उपलब्ध", bn: "ভিডিও কল উপলব্ধ", ur: "ویڈیو کالز دستیاب", ar: "مكالمات الفيديو متاحة" },
   zod_aries: { ru: "Овен", en: "Aries", es: "Aries", fr: "Bélier", de: "Widder", pt: "Áries", zh: "白羊座", ar: "الحمل", hi: "मेष", bn: "মেষ", ur: "حمل" },
   zod_taurus: { ru: "Телец", en: "Taurus", es: "Tauro", fr: "Taureau", de: "Stier", pt: "Touro", zh: "金牛座", ar: "الثور", hi: "वृषभ", bn: "বৃষ", ur: "ثور" },
   zod_gemini: { ru: "Близнецы", en: "Gemini", es: "Géminis", fr: "Gémeaux", de: "Zwillinge", pt: "Gêmeos", zh: "双子座", ar: "الجوزاء", hi: "मिथुन", bn: "মিথুন", ur: "جوزا" },

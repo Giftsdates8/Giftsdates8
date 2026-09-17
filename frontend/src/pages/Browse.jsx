@@ -17,7 +17,7 @@ import { Search, SlidersHorizontal, ChevronDown, Crown, Lock, Navigation, Plane,
 import { useNavigate } from "react-router-dom";
 import { INTENTS, KIDS, HABITS, RELIGIONS, INCOMES, BUST, SIZES, GENDERS, ORIENTATIONS, optLabel } from "../components/ProfileDetailsForm";
 import { VIP_CATEGORIES, catTitle } from "../lib/vipCatalog";
-import { LANGUAGES } from "../lib/i18n";
+import { LANGUAGES, ZODIAC_EMOJI } from "../lib/i18n";
 import { Switch } from "../components/ui/switch";
 import { geocodeCity } from "../lib/geolocate";
 
@@ -27,11 +27,13 @@ const VIP_EYE_COLORS = ["Brown", "Hazel", "Amber", "Green", "Blue", "Grey", "Bla
 const VIP_HAIR_COLORS = ["Black", "Dark brown", "Brown", "Light brown", "Blonde", "Platinum blonde", "Red", "Auburn", "Ginger", "Grey", "White", "Dyed / colourful"];
 const VIP_HAIRCUTS = ["Fully shaved", "Trimmed", "Landing strip", "Bikini line", "Natural / full", "Triangle"];
 const VIP_BREAST_SIZES = ["AA", "A", "B", "C", "D", "DD", "E", "F", "G", "H+", "Natural", "Enhanced"];
-const EXTRA_DEFAULT = { intent: ALL, kids: ALL, smoking: ALL, drinking: ALL, religion: ALL, income: ALL, language: ALL, bust_size: ALL, penis_size: ALL, orientation: ALL,
-  min_height: "", max_height: "", min_weight: "", max_weight: "", hobby: "", job: "", max_date_price: "", premium_only: false, vip_only: false, with_photos: false, verified_only: false, online_now: false,
+const EXTRA_DEFAULT = { intent: ALL, kids: ALL, smoking: ALL, drinking: ALL, religion: ALL, income: ALL, language: ALL, bust_size: ALL, penis_size: ALL, orientation: ALL, zodiac: ALL,
+  min_height: "", max_height: "", min_weight: "", max_weight: "", hobby: "", job: "", max_date_price: "", available_date: "", video_calls: false, premium_only: false, vip_only: false, with_photos: false, verified_only: false, online_now: false,
   vip_categories: [], vip_min_price: "", vip_max_price: "", vip_date: "",
   vip_eye_color: ALL, vip_hair_color: ALL, vip_intimate_haircut: ALL, vip_breast_size: ALL,
   vip_min_height: "", vip_max_height: "", vip_min_weight: "", vip_max_weight: "" };
+
+const ZODIAC_SIGNS = ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"];
 
 function FilterSelect({ testid, field, value, options, onChange, lang, label, labelFn }) {
   return (
@@ -290,6 +292,7 @@ export default function Browse() {
               <FilterSelect testid="filter-religion-select" field="religion" label={t("religion", lang)} value={filters.religion} options={RELIGIONS.filter(r => r !== "prefer_not")} onChange={v => setFilters({ ...filters, religion: v })} lang={lang} />
               <FilterSelect testid="filter-income-select" field="income" label={t("income", lang)} value={filters.income} options={INCOMES.filter(r => r !== "prefer_not" && r !== "custom")} onChange={v => setFilters({ ...filters, income: v })} lang={lang} />
               <FilterSelect testid="filter-language-select" field="language" label={t("language_filter", lang)} value={filters.language} options={LANGUAGES.map(l => l.code)} labelFn={c => { const l = LANGUAGES.find(x => x.code === c); return `${l.flag} ${l.name}`; }} onChange={v => setFilters({ ...filters, language: v })} lang={lang} />
+              <FilterSelect testid="filter-zodiac-select" field="zodiac" label={t("zodiac", lang)} value={filters.zodiac} options={ZODIAC_SIGNS} labelFn={z => `${ZODIAC_EMOJI[z] || ""} ${t("zod_" + z, lang)}`} onChange={v => setFilters({ ...filters, zodiac: v })} lang={lang} />
             </div>
             <div className="flex flex-wrap gap-3 items-end">
               <NumInput testid="filter-min-height-input" label={`${t("height", lang)} · ${t("min", lang)}`} min="100" max="250" value={filters.min_height} onChange={v => setFilters({ ...filters, min_height: v })} />
@@ -301,6 +304,8 @@ export default function Browse() {
                 <Input data-testid="filter-hobby-input" value={filters.hobby} onChange={e => setFilters({ ...filters, hobby: e.target.value })} className="bg-white/5 border-white/10 mt-1" /></div>
               <div className="min-w-[150px]"><label className="text-xs text-slate-400">{t("job_title", lang)}</label>
                 <Input data-testid="filter-job-input" value={filters.job} onChange={e => setFilters({ ...filters, job: e.target.value })} className="bg-white/5 border-white/10 mt-1" /></div>
+              <div className="min-w-[150px]"><label className="text-xs text-slate-400">{t("available_on_date", lang)}</label>
+                <Input data-testid="filter-available-date-input" type="date" value={filters.available_date} onChange={e => setFilters({ ...filters, available_date: e.target.value })} className="bg-white/5 border-white/10 mt-1" /></div>
               {filters.gender !== "male" && <FilterSelect testid="filter-bust-select" field="bust_size" label={t("bust_size", lang)} value={filters.bust_size} options={BUST} onChange={v => setFilters({ ...filters, bust_size: v })} lang={lang} />}
               {filters.gender !== "female" && <FilterSelect testid="filter-penis-select" field="penis_size" label={t("penis_size", lang)} value={filters.penis_size} options={SIZES} onChange={v => setFilters({ ...filters, penis_size: v })} lang={lang} />}
             </div>
@@ -340,6 +345,7 @@ export default function Browse() {
               <Toggle testid="filter-online-now" label={`🟢 ${t("online_now", lang)}`} checked={filters.online_now} onChange={v => setFilters({ ...filters, online_now: v })} />
               <Toggle testid="filter-with-photos" label={`📷 ${t("with_photos", lang)}`} checked={filters.with_photos} onChange={v => setFilters({ ...filters, with_photos: v })} />
               <Toggle testid="filter-verified-only" label={`✅ ${t("verified_only", lang)}`} checked={filters.verified_only} onChange={v => setFilters({ ...filters, verified_only: v })} />
+              <Toggle testid="filter-video-calls" label={`📹 ${t("video_calls_available", lang)}`} checked={filters.video_calls} onChange={v => setFilters({ ...filters, video_calls: v })} />
               {isPremium && <Button data-testid="profile-filters-reset-button" variant="ghost" onClick={() => setFilters({ ...filters, ...EXTRA_DEFAULT })} className="text-slate-400 hover:text-white ms-auto">{t("reset", lang)}</Button>}
             </div>
             </fieldset>

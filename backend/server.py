@@ -1196,6 +1196,7 @@ async def list_profiles(
     drinking: Optional[str] = None, income: Optional[str] = None, language: Optional[str] = None,
     hobby: Optional[str] = None, job: Optional[str] = None, min_weight: Optional[int] = None, max_weight: Optional[int] = None,
     bust_size: Optional[str] = None, penis_size: Optional[str] = None, max_date_price: Optional[int] = None,
+    zodiac: Optional[str] = None, available_date: Optional[str] = None, video_calls: bool = False,
     premium_only: bool = False, vip_only: bool = False, with_photos: bool = False, verified_only: bool = False, online_now: bool = False,
     vip_categories: Optional[str] = None, vip_min_price: Optional[int] = None, vip_max_price: Optional[int] = None, vip_date: Optional[str] = None,
     vip_eye_color: Optional[str] = None, vip_hair_color: Optional[str] = None, vip_intimate_haircut: Optional[str] = None, vip_breast_size: Optional[str] = None,
@@ -1208,6 +1209,7 @@ async def list_profiles(
     conds = [{"id": {"$ne": user["id"]}}, {"age": {"$gte": min_age, "$lte": max_age}}]
     advanced_used = any(v not in (None, "", "all", False) for v in (intent, min_height, max_height, kids, smoking, religion, drinking, income, language, orientation,
                                                                    hobby, job, min_weight, max_weight, bust_size, penis_size, max_date_price, premium_only, with_photos, verified_only, online_now,
+                                                                   zodiac, available_date, video_calls,
                                                                    vip_categories, vip_min_price, vip_max_price, vip_date))
     if advanced_used and not has_premium(user): raise HTTPException(403, "PREMIUM_REQUIRED")
     vip_adv = bool(vip_categories or (vip_min_price is not None) or (vip_max_price is not None) or vip_date
@@ -1225,6 +1227,9 @@ async def list_profiles(
                        ("drinking", drinking), ("income", income), ("bust_size", bust_size), ("penis_size", penis_size)):
         if val and val != "all": conds.append({field: val})
     if language and language != "all": conds.append({"languages_spoken": language})
+    if zodiac and zodiac != "all": conds.append({"zodiac": zodiac})
+    if available_date: conds.append({"availability": available_date})
+    if video_calls: conds.append({"video_calls_enabled": {"$ne": False}})
     if hobby: conds.append({"hobbies": {"$elemMatch": {"$regex": re.escape(hobby), "$options": "i"}}})
     if job: conds.append({"job_title": {"$regex": re.escape(job), "$options": "i"}})
     for field, lo, hi in (("height", min_height, max_height), ("weight", min_weight, max_weight)):
