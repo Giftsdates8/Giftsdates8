@@ -104,6 +104,22 @@
 
 user_problem_statement: "Test the GiftsDates withdrawal-gating and payout-document flow on the FastAPI backend. Verify auth/login persistence after GitHub restore."
 
+  - task: "Browse multi-gender filter (GET /api/profiles?genders=a,b)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added new BASIC (non-premium) query param `genders` (comma-separated list) to GET /api/profiles. When provided, adds condition {$or:[{gender:{$in:list}},{genders:{$in:list}}]} so profiles matching ANY selected gender appear. Must NOT require premium (it is a basic filter, not in advanced_used). Single `gender` param still works for backward compat. Test: register targets with different genders (e.g., female, male, non_binary); as a NON-premium user call GET /api/profiles?genders=female,non_binary and confirm 200 (no PREMIUM_REQUIRED) and only those genders returned, male excluded. Confirm empty/omitted genders returns everyone (subject to other basic filters)."
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive testing completed. Created /app/backend_test_multi_gender.py with 5 test scenarios covering the new multi-gender BASIC filter. All tests PASSED. Test setup: Registered 3 target users with distinct genders (female, male, non_binary) and 1 NON-premium searcher user. Test results: (1) Multi-gender filter GET /api/profiles?genders=female,non_binary returns HTTP 200 (NOT 403 PREMIUM_REQUIRED) and correctly includes female and non_binary targets while excluding male target ✅, (2) Single gender in genders param GET /api/profiles?genders=male returns HTTP 200 and correctly includes only male target ✅, (3) Backward compatibility GET /api/profiles?gender=female still works and returns female target ✅, (4) Omitting genders GET /api/profiles returns all three targets (no gender restriction) ✅, (5) Verified searcher is NON-premium (is_premium=False, is_vip=False, is_premium_lite=False) and can successfully use genders filter without 403 error ✅. Implementation verified at lines 1193 (parameter definition), 1210-1213 (genders NOT in advanced_used list, confirming it's a BASIC filter), and 1225-1228 (filter logic with $or condition matching both gender and genders fields) in server.py. The genders parameter is correctly implemented as a BASIC filter (not premium-gated) and works as specified. Feature fully functional."
+
+
   - task: "Browse filters upgrade: zodiac, available_date, video_calls (GET /api/profiles)"
     implemented: true
     working: true
@@ -329,16 +345,22 @@ backend:
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 6
+  test_sequence: 7
   run_ui: false
   last_tested: "2026-09-17"
-  last_test_focus: "browse_filters_upgrade"
+  last_test_focus: "multi_gender_filter"
 
 test_plan:
   current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "New Browse multi-gender BASIC filter to test on GET /api/profiles. Added param `genders` (comma-separated, e.g. genders=female,non_binary). It must NOT require premium. Test as a NON-premium user: register 3 targets with genders female/male/non_binary; GET /api/profiles?genders=female,non_binary returns 200 and includes female + non_binary targets but excludes male; single gender param still works; omitting genders returns all (subject to basic age filters). City dropdown + travel-mode removal are frontend-only. Stripe INACTIVE."
+  - agent: "testing"
+    message: "Completed comprehensive testing of Browse multi-gender BASIC filter (2026-09-17). Created /app/backend_test_multi_gender.py with 5 test scenarios. All 5 tests PASSED. Test setup: Registered 3 target users with distinct genders (female: Layla Hassan, male: Ahmed Al-Rashid, non_binary: Jordan Smith) and 1 NON-premium searcher user (Fatima Al Mazrouei). RESULTS: (1) Multi-gender filter GET /api/profiles?genders=female,non_binary returns HTTP 200 (NOT 403 PREMIUM_REQUIRED) and correctly includes female and non_binary targets while excluding male target ✅. (2) Single gender in genders param GET /api/profiles?genders=male returns HTTP 200 and correctly includes only male target among the three ✅. (3) Backward compatibility GET /api/profiles?gender=female still works and returns female target ✅. (4) Omitting genders GET /api/profiles returns all three targets (no gender restriction) ✅. (5) Verified searcher is NON-premium (is_premium=False, is_vip=False, is_premium_lite=False) and can successfully use genders filter without 403 error ✅. Implementation verified: genders parameter defined at line 1193, NOT included in advanced_used list at lines 1210-1213 (confirming it's a BASIC filter, not premium-gated), filter logic at lines 1225-1228 uses $or condition to match both gender and genders fields. The genders parameter is correctly implemented as a BASIC filter and works exactly as specified. Feature fully functional."
 
 agent_communication:
   - agent: "main"

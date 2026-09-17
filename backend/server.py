@@ -1190,7 +1190,7 @@ def visible_distance(vlat, vlng, target: dict):
 @api.get("/profiles")
 async def list_profiles(
     q: Optional[str] = None, city: Optional[str] = None, country: Optional[str] = None,
-    min_age: int = 18, max_age: int = 99, gender: Optional[str] = None,
+    min_age: int = 18, max_age: int = 99, gender: Optional[str] = None, genders: Optional[str] = None,
     intent: Optional[str] = None, min_height: Optional[int] = None, max_height: Optional[int] = None,
     kids: Optional[str] = None, smoking: Optional[str] = None, religion: Optional[str] = None, orientation: Optional[str] = None,
     drinking: Optional[str] = None, income: Optional[str] = None, language: Optional[str] = None,
@@ -1222,6 +1222,10 @@ async def list_profiles(
     if country and country.strip().lower() != "global":
         conds.append({"$or": [{"country": {"$regex": re.escape(country.strip()), "$options": "i"}}, {"country": {"$regex": "^global$", "$options": "i"}}]})
     if gender and gender != "all": conds.append({"gender": gender})
+    if genders:
+        glist = [g.strip() for g in genders.split(",") if g.strip() and g.strip() != "all"]
+        if glist:
+            conds.append({"$or": [{"gender": {"$in": glist}}, {"genders": {"$in": glist}}]})
     if q: conds.append({"$or": [{"name": {"$regex": q, "$options": "i"}}, {"bio": {"$regex": q, "$options": "i"}}]})
     for field, val in (("relationship_intent", intent), ("kids", kids), ("smoking", smoking), ("religion", religion), ("orientation", orientation),
                        ("drinking", drinking), ("income", income), ("bust_size", bust_size), ("penis_size", penis_size)):
