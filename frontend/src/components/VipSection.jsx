@@ -18,6 +18,28 @@ export default function VipSection({ userId, name, preview }) {
   const [place, setPlace] = useState(null);
   const [loc, setLoc] = useState({});
   const [busy, setBusy] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+
+  const unlockSection = async () => {
+    const price = data?.unlock_price || 100;
+    if (((user?.coins || 0) + (user?.withdrawable || 0)) < price) {
+      toast.error(t("vip_unlock_insufficient", lang), { action: { label: t("topup", lang), onClick: () => nav("/wallet") } });
+      return;
+    }
+    setUnlocking(true);
+    try {
+      await api.post(`/vip/unlock/${userId}`);
+      toast.success(t("vip_unlock_success", lang));
+      await refreshUser();
+      const q = preview ? `?preview=${preview}` : "";
+      const r = await api.get(`/vip/profile/${userId}${q}`);
+      setData(r.data);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Error");
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   useEffect(() => {
     const q = preview ? `?preview=${preview}` : "";
@@ -40,8 +62,20 @@ export default function VipSection({ userId, name, preview }) {
           <Lock className="text-amber-300" size={26} />
           <div className="font-serif-luxe text-lg text-white mt-2">{t("vip_sensitive", lang)}</div>
           {data.services_count > 0 && <div className="text-xs text-amber-200 mt-1">{data.services_count} 🔒</div>}
-          <p className="text-xs text-slate-300 mt-1 max-w-xs">{t("vip_sensitive_note", lang)}</p>
-          <Button data-testid="vip-unlock-cta" onClick={() => nav("/wallet?premium=1")} className="rose-btn text-white border-0 mt-3">{t("vip_unlock_btn", lang)}</Button>
+          <p className="text-xs text-slate-300 mt-1 max-w-xs">{t("vip_unlock_note", lang)}</p>
+          {data.can_unlock ? (
+            <div className="flex flex-col items-center gap-2 mt-3 w-full max-w-xs">
+              <Button data-testid="vip-unlock-one-cta" onClick={unlockSection} disabled={unlocking} className="rose-btn text-white border-0 w-full">
+                {t("vip_unlock_one", lang)} · 🪙 {data.unlock_price || 100}
+              </Button>
+              <span className="text-[11px] text-slate-400 uppercase tracking-wide">{t("vip_unlock_or", lang)}</span>
+              <Button data-testid="vip-unlock-cta" variant="outline" onClick={() => nav("/wallet?premium=1")} className="w-full bg-white/5 border-amber-500/40 text-amber-200 hover:bg-amber-500/10 hover:text-amber-100">
+                {t("vip_get_unlimited", lang)}
+              </Button>
+            </div>
+          ) : (
+            <Button data-testid="vip-unlock-cta" onClick={() => nav("/wallet?premium=1")} className="rose-btn text-white border-0 mt-3">{t("vip_unlock_btn", lang)}</Button>
+          )}
         </div>
       </div>
     );

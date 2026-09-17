@@ -44,6 +44,10 @@ export default function Wallet() {
     try { await api.post("/premium/auto-renew", { enabled }); await refreshUser(); toast.success(enabled ? t("autorenew_on_toast", lang) : t("autorenew_off_toast", lang)); }
     catch { toast.error(t("failed", lang)); }
   };
+  const cancelVipRenew = async () => {
+    try { await api.post("/vip/cancel-subscription"); await refreshUser(); toast.success(t("vip_autorenew_cancelled_toast", lang)); }
+    catch (e) { toast.error(e.response?.data?.detail || t("failed", lang)); }
+  };
   const verified = wallet.payout_account?.status === "verified";
   const idVerified = user?.verified === true;
   const canWithdraw = verified && idVerified;
@@ -61,6 +65,8 @@ export default function Wallet() {
     }
   };
   const isPremium = user?.premium_until && new Date(user.premium_until) > new Date();
+  const isVip = user?.vip_until && new Date(user.vip_until) > new Date();
+  const vipAutoRenew = isVip && user?.vip_auto_renew !== false && !!user?.stripe_subscription_id;
 
   return (
     <div className="aurora-bg min-h-[calc(100vh-4rem)]">
@@ -117,6 +123,28 @@ export default function Wallet() {
                   : <Button data-testid="premium-cancel-autorenew" onClick={() => toggleAutoRenew(false)} variant="outline" className="bg-white/5 border-white/10 hover:bg-white/10 text-slate-300">{t("cancel_autorenew", lang)}</Button>)}
           </div>
         </div>
+
+        {isVip && (
+          <div className="glass rounded-2xl p-5 border border-rose-500/30" data-testid="vip-subscription-card">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center"><Crown className="text-rose-300"/></div>
+                <div>
+                  <div className="font-serif-luxe text-xl gold-text">VIP</div>
+                  <div className="text-xs text-emerald-300">{t("premium_active", lang)} · {new Date(user.vip_until).toLocaleDateString()}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5" data-testid="vip-autorenew-status">
+                    {vipAutoRenew
+                      ? `🔁 ${t("vip_autorenew_on", lang)}`
+                      : `⛔ ${t("vip_autorenew_off", lang).replace("{d}", new Date(user.vip_until).toLocaleDateString())}`}
+                  </div>
+                </div>
+              </div>
+              {vipAutoRenew
+                ? <Button data-testid="vip-cancel-autorenew" onClick={cancelVipRenew} variant="outline" className="bg-white/5 border-white/10 hover:bg-white/10 text-slate-300">{t("cancel_autorenew", lang)}</Button>
+                : <Button data-testid="vip-resubscribe" onClick={() => setPremOpen(true)} variant="outline" className="bg-rose-500/10 border-rose-500/40 text-rose-200">{t("vip_resubscribe", lang)}</Button>}
+            </div>
+          </div>
+        )}
 
         <div className="glass rounded-2xl p-5">
           <h3 className="font-serif-luxe text-xl mb-3">{t("transactions", lang)}</h3>
@@ -222,7 +250,7 @@ export default function Wallet() {
             </ul>
             <Button data-testid="vip-subscribe-confirm" onClick={() => buy("vip_monthly")} className="rose-btn text-white border-0 w-full h-11">VIP · ${meta?.vip?.amount || 49.99}</Button>
             <Button data-testid="vip-buy-coins" onClick={() => buyCoins("vip")} variant="outline" className="w-full bg-rose-500/10 border-rose-500/40 text-rose-200 h-10">🪙 {meta?.vip_coins || 500}</Button>
-            <p className="text-[11px] text-slate-400 leading-snug">{t("premium_autorenew_note", lang)}</p>
+            <p className="text-[11px] text-slate-400 leading-snug">{t("vip_card_billing_note", lang)}</p>
           </div>
         </DialogContent>
       </Dialog>

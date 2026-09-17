@@ -90,6 +90,7 @@ PREMIUM_LITE_PACKAGE = {"lookup": "premium_lite_monthly", "amount": 14.99, "name
 PREMIUM_COINS = 300
 VIP_COINS = 500
 PREMIUM_LITE_COINS = 150
+VIP_UNLOCK_COINS = 100  # one-time coins to unlock a single member's private VIP section
 VIP_SERVICES = {
     "basic": ["Минет в презервативе", "Поцелуи с языком", "Секс анальный", "Секс вагинальный", "Секс групповой", "Секс лесбийский"],
     "extra": ["Куннилингус", "Минет без резинки", "Минет глубокий", "Окончание в рот", "Окончание на грудь", "Окончание на лицо", "Работаю с девственниками", "Ролевые игры", "Секс игрушки", "Секс по телефону", "Услуги семейной паре", "Фейсситтинг", "Фото/видео съемка", "Эскорт"],
@@ -2250,6 +2251,11 @@ async def get_vip_profile(uid: str, preview: Optional[str] = None, user=Depends(
     force_vip = preview == "vip"
     is_owner = real_owner and not force_guest and not force_vip
     eff_premium = (is_premium(user) or force_vip) and not force_guest
+    # Per-profile one-time unlock: a non-premium visitor who paid coins to unlock this member's VIP section
+    eff_unlocked = False
+    if not is_owner and not eff_premium and not force_guest:
+        _u = await db.vip_unlocks.find_one({"viewer_id": user["id"], "owner_id": owner["id"]})
+        eff_unlocked = bool(_u)
     separate = vip.get("post_mode") == "separate"
     # Unpublished VIP profiles are only visible to their owner (allow the owner's own previews)
     if vip.get("published") is False and not is_owner and not real_owner:
@@ -2275,18 +2281,53 @@ async def get_vip_profile(uid: str, preview: Optional[str] = None, user=Depends(
         display_genders = [owner.get("gender")] if owner.get("gender") else []
     # target used for booking: public_id for separate listings so the real id stays hidden
     target_id = vip.get("public_id") if (separate and not is_owner) else owner["id"]
-    if is_owner or eff_premium:
+    if is_owner or eff_premium or eff_unlocked:
         return {"locked": False, "user_id": target_id, "name": display_name,
                 "real_name": (None if (separate and not is_owner) else owner.get("name")),
                 "nickname": vip.get("nickname") or "", "post_mode": vip.get("post_mode") or "together",
                 "separate": separate, "show_on_main": vip.get("show_on_main", True),
                 "city": display_city, "country": display_country, "age": display_age, "gender": display_gender, "genders": display_genders,
-                "vip": vip, "is_owner": is_owner}
+                "vip": vip, "is_owner": is_owner, "unlocked_via_coins": eff_unlocked}
     _p = vip.get("photos") or []
     return {"locked": True, "teaser_photo": _p[0] if _p else None, "name": display_name if separate else None,
             "post_mode": vip.get("post_mode") or "together", "separate": separate,
             "city": display_city if separate else None, "age": display_age if separate else None,
-            "services_count": len(vip.get("services") or [])}
+            "services_count": len(vip.get("services") or []),
+            "unlock_price": VIP_UNLOCK_COINS, "can_unlock": (not real_owner)}
+
+@api.post("/vip/unlock/{uid}")
+async def vip_unlock(uid: str, user=Depends(get_current_user)):
+    """One-time unlock of a single member's private VIP section for VIP_UNLOCK_COINS coins.
+    The owner earns the coins (credited to withdrawable). Premium/VIP members never need this."""
+    owner = await db.users.find_one({"id": uid})
+    if not owner:
+        owner = await db.users.find_one({"vip.public_id": uid})
+    if not owner or not owner.get("vip"):
+        raise HTTPException(404, "No VIP profile")
+    vip = owner["vip"]
+    if vip.get("published") is False:
+        raise HTTPException(404, "No VIP profile")
+    if owner["id"] == user["id"]:
+        raise HTTPException(400, "CANNOT_UNLOCK_SELF")
+    # Premium/VIP already have unlimited access
+    if is_premium(user):
+        return {"unlocked": True, "already": True}
+    existing = await db.vip_unlocks.find_one({"viewer_id": user["id"], "owner_id": owner["id"]})
+    if existing:
+        return {"unlocked": True, "already": True}
+    price = VIP_UNLOCK_COINS
+    if (int(user.get("coins", 0) or 0) + float(user.get("withdrawable", 0) or 0)) < price:
+        raise HTTPException(400, "Insufficient coins")
+    await spend_coins(user["id"], price)
+    await record_txn(user["id"], "vip_unlock", -price, description="Unlocked a private VIP section")
+    # Credit the owner for their private content
+    await db.users.update_one({"id": owner["id"]}, {"$inc": {"withdrawable": price}})
+    await record_txn(owner["id"], "vip_unlock_earned", price, description="A member unlocked your private VIP section")
+    await db.vip_unlocks.insert_one({"id": str(uuid.uuid4()), "viewer_id": user["id"], "owner_id": owner["id"],
+                                     "coins": price, "created_at": datetime.now(timezone.utc).isoformat()})
+    await notify(owner["id"], "vip_unlock", "🔓 VIP content unlocked",
+                 f"A member unlocked your private VIP section · 🪙 {price}.", {}, email=False)
+    return {"unlocked": True, "coins_spent": price}
 
 @api.post("/vip/book")
 async def vip_book(req: DateBookingReq, user=Depends(get_current_user)):
@@ -2423,6 +2464,33 @@ async def set_auto_renew(req: AutoRenewReq, user=Depends(get_current_user)):
     await db.users.update_one({"id": user["id"]}, {"$set": {"premium_auto_renew": req.enabled}})
     return {"premium_auto_renew": req.enabled}
 
+@api.get("/vip/subscription")
+async def vip_subscription_status(user=Depends(get_current_user)):
+    """Status of the member's recurring VIP card subscription."""
+    return {
+        "vip_active": is_vip(user),
+        "vip_until": user.get("vip_until"),
+        "auto_renew": bool(user.get("vip_auto_renew")) and bool(user.get("stripe_subscription_id")),
+        "has_subscription": bool(user.get("stripe_subscription_id")),
+        "amount": VIP_PACKAGE["amount"],
+    }
+
+@api.post("/vip/cancel-subscription")
+async def vip_cancel_subscription(user=Depends(get_current_user)):
+    """Stop the monthly card charge. VIP stays active until the current period ends, then expires."""
+    sub_id = user.get("stripe_subscription_id")
+    if not sub_id:
+        # Nothing on Stripe to cancel — just clear the flag
+        await db.users.update_one({"id": user["id"]}, {"$set": {"vip_auto_renew": False}})
+        return {"cancelled": True, "auto_renew": False}
+    try:
+        # Cancel at period end so the member keeps VIP until vip_until, but is never charged again
+        stripe.Subscription.modify(sub_id, cancel_at_period_end=True)
+    except stripe.error.StripeError as e:
+        raise HTTPException(500, f"Stripe error: {e.user_message or str(e)}")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"vip_auto_renew": False}})
+    return {"cancelled": True, "auto_renew": False, "vip_until": user.get("vip_until")}
+
 @api.delete("/account")
 async def delete_account(user=Depends(get_current_user)):
     uid = user["id"]
@@ -2446,7 +2514,7 @@ async def create_checkout(req: CheckoutReq, user=Depends(get_current_user)):
         pkg_name = PREMIUM_LITE_PACKAGE["name"]; amount = int(round(PREMIUM_LITE_PACKAGE["amount"] * 100)); mode = "payment"
         metadata = {"user_id": user["id"], "package_id": "premium_lite_monthly", "type": "premium_lite"}
     elif req.package_id == "vip_monthly":
-        pkg_name = VIP_PACKAGE["name"]; amount = int(round(VIP_PACKAGE["amount"] * 100)); mode = "payment"
+        pkg_name = VIP_PACKAGE["name"]; amount = int(round(VIP_PACKAGE["amount"] * 100)); mode = "subscription"
         metadata = {"user_id": user["id"], "package_id": "vip_monthly", "type": "vip"}
     elif req.package_id == "custom":
         usd = round(float(req.usd_amount or 0), 2)
@@ -2461,8 +2529,14 @@ async def create_checkout(req: CheckoutReq, user=Depends(get_current_user)):
         pkg_name = pkg["name"]; amount = int(round(pkg["amount"] * 100)); mode = "payment"
         metadata = {"user_id": user["id"], "package_id": req.package_id, "type": "coins", "coins": str(pkg["coins"] + pkg["bonus"])}
     try:
+        _price_data = {"currency": "usd", "product_data": {"name": pkg_name}, "unit_amount": amount}
+        _extra = {}
+        if mode == "subscription":
+            _price_data["recurring"] = {"interval": "month"}
+            # carry metadata onto the subscription so recurring invoices can be attributed
+            _extra["subscription_data"] = {"metadata": metadata}
         session = stripe.checkout.Session.create(
-            line_items=[{"price_data": {"currency": "usd", "product_data": {"name": pkg_name}, "unit_amount": amount}, "quantity": 1}],
+            line_items=[{"price_data": _price_data, "quantity": 1}],
             mode=mode,
             # Omitting payment_method_types lets Stripe show every method enabled in the Dashboard for the buyer's country:
             # all major cards worldwide, Apple Pay / Google Pay, Link, PayPal, Klarna, iDEAL, SEPA, Alipay, WeChat Pay, etc.
@@ -2472,6 +2546,7 @@ async def create_checkout(req: CheckoutReq, user=Depends(get_current_user)):
             success_url=f"{req.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{req.origin_url}/payment/cancel",
             metadata=metadata,
+            **_extra,
         )
     except stripe.error.StripeError as e:
         raise HTTPException(500, f"Stripe error: {e.user_message or str(e)}")
@@ -2520,7 +2595,8 @@ async def _fulfill(session_id: str, meta: dict):
                 except Exception: pass
             return (s0 + timedelta(days=30)).isoformat()
         await db.users.update_one({"id": user_id}, {"$set": {
-            "premium_until": _ext(u.get("premium_until")), "vip_until": _ext(u.get("vip_until")), "premium_auto_renew": True}})
+            "premium_until": _ext(u.get("premium_until")), "vip_until": _ext(u.get("vip_until")),
+            "premium_auto_renew": True, "vip_auto_renew": True}})
     await db.payment_transactions.update_one({"session_id": session_id}, {"$set": {"fulfilled": True}})
 
 @api.get("/payments/status/{session_id}")
@@ -2557,7 +2633,47 @@ async def stripe_webhook(request: Request):
             {"$set": {"status": "completed", "payment_status": obj.get("payment_status", "paid"),
                       "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
-        await _fulfill(obj["id"], obj.get("metadata") or {})
+        # For recurring VIP, persist the Stripe subscription + customer so we can renew / cancel it later
+        meta = obj.get("metadata") or {}
+        if obj.get("mode") == "subscription" and meta.get("user_id"):
+            await db.users.update_one({"id": meta["user_id"]}, {"$set": {
+                "stripe_subscription_id": obj.get("subscription"),
+                "stripe_customer_id": obj.get("customer"),
+                "vip_auto_renew": True}})
+        await _fulfill(obj["id"], meta)
+    elif t == "invoice.paid":
+        # Recurring monthly charge succeeded on the saved bank card -> extend VIP by 30 days
+        sub_id = obj.get("subscription")
+        cust_id = obj.get("customer")
+        u = None
+        if sub_id:
+            u = await db.users.find_one({"stripe_subscription_id": sub_id})
+        if not u and cust_id:
+            u = await db.users.find_one({"stripe_customer_id": cust_id})
+        # Skip the very first invoice (already granted via checkout.session.completed)
+        if u and obj.get("billing_reason") not in ("subscription_create",):
+            await db.users.update_one({"id": u["id"]}, {"$set": {
+                "premium_until": extend_until(u.get("premium_until")),
+                "vip_until": extend_until(u.get("vip_until")),
+                "vip_auto_renew": True}})
+            await notify(u["id"], "vip_renewed", "VIP renewed 👑",
+                         "Your VIP subscription was renewed for another month on your saved card.", {}, email=True)
+    elif t == "invoice.payment_failed":
+        # Card declined / no funds -> let VIP lapse and notify (per policy: no grace period)
+        sub_id = obj.get("subscription"); cust_id = obj.get("customer")
+        u = (await db.users.find_one({"stripe_subscription_id": sub_id})) if sub_id else None
+        if not u and cust_id:
+            u = await db.users.find_one({"stripe_customer_id": cust_id})
+        if u:
+            await db.users.update_one({"id": u["id"]}, {"$set": {"vip_auto_renew": False}})
+            await notify(u["id"], "vip_renew_failed", "VIP renewal failed",
+                         "We couldn't charge your card, so your VIP will expire at the end of the period. Update your card or buy VIP again to keep access.",
+                         {}, email=True)
+    elif t == "customer.subscription.deleted":
+        sub_id = obj.get("id")
+        u = await db.users.find_one({"stripe_subscription_id": sub_id}) if sub_id else None
+        if u:
+            await db.users.update_one({"id": u["id"]}, {"$set": {"vip_auto_renew": False, "stripe_subscription_id": None}})
     return {"status": "ok"}
 
 # ---------- Health ----------
